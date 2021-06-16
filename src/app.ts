@@ -9,6 +9,10 @@ import './shared/container';
 import { router } from './routes';
 import { AppError } from './shared/errors/AppError';
 
+import createConnection from './database'
+
+createConnection("localhost");
+
 const app = express();
 
 app.use(cors());
@@ -22,6 +26,7 @@ app.use(
       return response.status(err.statusCode).json({
         message: err.message
       });
+   
     }
 
     return response.status(500).json({

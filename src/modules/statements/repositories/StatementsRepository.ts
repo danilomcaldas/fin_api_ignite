@@ -1,9 +1,10 @@
 import { getRepository, Repository } from "typeorm";
 
-import { Statement } from "../entities/Statement";
+import { Statement, OperationType } from "../entities/Statement";
 import { ICreateStatementDTO } from "../useCases/createStatement/ICreateStatementDTO";
 import { IGetBalanceDTO } from "../useCases/getBalance/IGetBalanceDTO";
 import { IGetStatementOperationDTO } from "../useCases/getStatementOperation/IGetStatementOperationDTO";
+import { IMakeTransferDTO } from "../useCases/makeTransfer/IMakeTransferDTO";
 import { IStatementsRepository } from "./IStatementsRepository";
 
 export class StatementsRepository implements IStatementsRepository {
@@ -12,6 +13,7 @@ export class StatementsRepository implements IStatementsRepository {
   constructor() {
     this.repository = getRepository(Statement);
   }
+  
 
   async create({
     user_id,
@@ -35,7 +37,7 @@ export class StatementsRepository implements IStatementsRepository {
     });
   }
 
-  async getUserBalance({ user_id, with_statement = false }: IGetBalanceDTO):
+  async getUserBalance({ user_id, with_statement = false}: IGetBalanceDTO):
     Promise<
       { balance: number } | { balance: number, statement: Statement[] }
     >
@@ -45,10 +47,13 @@ export class StatementsRepository implements IStatementsRepository {
     });
 
     const balance = statement.reduce((acc, operation) => {
-      if (operation.type === 'deposit') {
-        return acc + operation.amount;
+
+      const operationAmount = parseFloat(String(operation.amount))
+           
+      if (operation.type === 'deposit' || operation.sender_id) {
+        return acc +  operationAmount;
       } else {
-        return acc - operation.amount;
+        return acc - operationAmount;
       }
     }, 0)
 
@@ -61,4 +66,30 @@ export class StatementsRepository implements IStatementsRepository {
 
     return { balance }
   }
+
+  async transferOperation ({ sender_id, recipient_id, amount, description }: IMakeTransferDTO): Promise<Statement[]> {
+		const sendTransferOperation = this.repository.create({
+			user_id: sender_id,
+			recipient_id,
+			amount,
+			description,
+			type: OperationType.TRANSFER
+		});
+
+    console.log(sendTransferOperation)
+
+		const receiveTransferOperation = this.repository.create({
+			user_id: recipient_id,
+			sender_id,
+			amount,
+			description,
+			type: OperationType.TRANSFER
+		});
+
+		await this.repository.save(sendTransferOperation);
+		await this.repository.save(receiveTransferOperation);
+
+		return [sendTransferOperation, receiveTransferOperation];
+	}
+    
 }
